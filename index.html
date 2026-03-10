@@ -29,6 +29,7 @@ uniform float zoom;
 uniform float click;
 uniform float rclick;
 uniform vec2 clickPos;
+uniform float quality;
 out vec4 o;
 
 vec3 palette(float t, float shift) {
@@ -58,8 +59,10 @@ float noise(vec2 p) {
 
 float fbm(vec2 p) {
   float v = 0.0, a = 0.5;
+  int oct = quality > 0.5 ? 5 : 3;
   mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
   for (int i = 0; i < 5; i++) {
+    if (i >= oct) break;
     v += a * noise(p);
     p = rot * p * 2.0;
     a *= 0.5;
@@ -141,7 +144,8 @@ void main() {
   d.z += rBend * 0.5;
   d.xy = mix(d.xy, normalize(rUV - uv + 0.001) * 0.3, rBend * 0.4);
 
-  float maxIter = 80.0 + click * 40.0;
+  float baseIter = mix(50.0, 80.0, quality);
+  float maxIter = baseIter + click * 40.0;
   float spdMod = spd + click * 1.5 + rclick * 0.8;
 
   for (q.zy--; i++ < maxIter; ) {
@@ -199,11 +203,13 @@ void main() {
   col += rc * disk2 * vec3(0.35, 0.0, 0.0) * (1.0 - diskPulse);
 
   // Lightning cracks — sharp fractal veins tearing outward
-  float crack1 = pow(fbm(uv * 25.0 + t * 4.0), 3.0);
-  float crack2 = pow(fbm(uv * 40.0 - t * 6.0 + vec2(7.1, 3.3)), 3.0);
-  float crackMask = rc * exp(-rDist * 1.5);
-  col += crack1 * crackMask * vec3(1.0, 0.1, 0.0) * 3.0;
-  col += crack2 * crackMask * vec3(0.5, 0.0, 0.0) * 2.0;
+  if (quality > 0.5) {
+    float crack1 = pow(fbm(uv * 25.0 + t * 4.0), 3.0);
+    float crack2 = pow(fbm(uv * 40.0 - t * 6.0 + vec2(7.1, 3.3)), 3.0);
+    float crackMask = rc * exp(-rDist * 1.5);
+    col += crack1 * crackMask * vec3(1.0, 0.1, 0.0) * 3.0;
+    col += crack2 * crackMask * vec3(0.5, 0.0, 0.0) * 2.0;
+  }
 
   // Pulsing darkness — entire screen breathes black
   float darkPulse = 0.5 + 0.5 * sin(t * 3.0);
@@ -257,6 +263,9 @@ const uZoom = gl.getUniformLocation(pg, "zoom");
 const uClick = gl.getUniformLocation(pg, "click");
 const uRClick = gl.getUniformLocation(pg, "rclick");
 const uClickPos = gl.getUniformLocation(pg, "clickPos");
+const uQuality = gl.getUniformLocation(pg, "quality");
+
+const isMobile = 'ontouchstart' in window;
 
 let mouse = { x: 0.5, y: 0.5 };
 let smoothMouse = { x: 0.5, y: 0.5 };
@@ -299,9 +308,95 @@ canvas.addEventListener("wheel", (e) => {
   zoomTarget = Math.max(0.2, Math.min(zoomTarget, 5.0));
 }, { passive: false });
 
+// === Touch input ===
+let touchStartTime = 0;
+let touchStartPos = { x: 0, y: 0 };
+let longPressTimer = null;
+let pinchStartDist = 0;
+let tapTimeout = null;
+
+function touchXY(touch) {
+  return {
+    x: touch.clientX / canvas.clientWidth,
+    y: 1.0 - touch.clientY / canvas.clientHeight
+  };
+}
+
+function pinchDist(touches) {
+  const dx = touches[1].clientX - touches[0].clientX;
+  const dy = touches[1].clientY - touches[0].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const pos = touchXY(e.touches[0]);
+    mouse.x = pos.x;
+    mouse.y = pos.y;
+    touchStartTime = performance.now();
+    touchStartPos = pos;
+    longPressTimer = setTimeout(() => {
+      rightDown = true;
+    }, 400);
+  }
+  if (e.touches.length === 2) {
+    clearTimeout(longPressTimer);
+    pinchStartDist = pinchDist(e.touches);
+  }
+}, { passive: false });
+
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const pos = touchXY(e.touches[0]);
+    const dx = pos.x - touchStartPos.x;
+    const dy = pos.y - touchStartPos.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 0.02) {
+      clearTimeout(longPressTimer);
+    }
+    mouse.x = pos.x;
+    mouse.y = pos.y;
+  }
+  if (e.touches.length === 2) {
+    const dist = pinchDist(e.touches);
+    if (pinchStartDist > 0) {
+      const ratio = dist / pinchStartDist;
+      zoomTarget *= ratio > 1 ? 0.97 : 1.03;
+      zoomTarget = Math.max(0.2, Math.min(zoomTarget, 5.0));
+    }
+    pinchStartDist = dist;
+  }
+}, { passive: false });
+
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  clearTimeout(longPressTimer);
+  if (rightDown) {
+    rightDown = false;
+    return;
+  }
+  const elapsed = performance.now() - touchStartTime;
+  if (elapsed < 300) {
+    clickPos.x = touchStartPos.x;
+    clickPos.y = touchStartPos.y;
+    leftDown = true;
+    clearTimeout(tapTimeout);
+    tapTimeout = setTimeout(() => { leftDown = false; }, 500);
+  }
+}, { passive: false });
+
+canvas.addEventListener("touchcancel", () => {
+  clearTimeout(longPressTimer);
+  clearTimeout(tapTimeout);
+  leftDown = false;
+  rightDown = false;
+});
+
 function resize() {
-  canvas.width = canvas.clientWidth * devicePixelRatio;
-  canvas.height = canvas.clientHeight * devicePixelRatio;
+  const dpr = isMobile ? Math.min(devicePixelRatio, 1.0) : devicePixelRatio;
+  canvas.width = canvas.clientWidth * dpr;
+  canvas.height = canvas.clientHeight * dpr;
   gl.viewport(0, 0, canvas.width, canvas.height);
 }
 
@@ -323,6 +418,7 @@ function frame(ms) {
   gl.uniform1f(uClick, clickIntensity);
   gl.uniform1f(uRClick, rclickIntensity);
   gl.uniform2f(uClickPos, clickPos.x, clickPos.y);
+  gl.uniform1f(uQuality, isMobile ? 0.0 : 1.0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   requestAnimationFrame(frame);
 }
