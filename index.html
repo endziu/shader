@@ -81,7 +81,7 @@ void main() {
   vec2 cUV = (clickPos - 0.5) * vec2(r.x / r.y, 1.0);
 
   float dist = length(uv - mUV);
-  float influence = smoothstep(0.45, 0.0, dist);
+  float influence = smoothstep(0.7, 0.0, dist);
 
   float cDist = length(uv - cUV);
 
@@ -126,7 +126,7 @@ void main() {
     fbm(uv * 6.0 + t * 0.3),
     fbm(uv * 6.0 + vec2(5.2, 1.3) + t * 0.3)
   ) - 0.5;
-  uv += warp * influence * 0.15;
+  uv += warp * influence * 0.3;
 
   float i, e, R, s;
   vec3 q, p, d = vec3(uv * sc + mOff, 0.6);
@@ -152,7 +152,7 @@ void main() {
     p = q += d * e * R * (0.35 - click * 0.12);
     R = length(p);
 
-    float nz = influence * fbm(p.xy * 3.0 + t * 0.5) * 0.4;
+    float nz = influence * fbm(p.xy * 3.0 + t * 0.5) * 0.7;
     float clickNz = click * sin(R * 10.0 - t * 6.0) * 0.3 *
                     exp(-abs(length(p.xy) - cDist * 2.0));
 
@@ -304,7 +304,7 @@ canvas.addEventListener("mouseleave", () => {
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   zoomTarget *= e.deltaY > 0 ? 1.08 : 0.92;
-  zoomTarget = Math.max(0.2, Math.min(zoomTarget, 5.0));
+  zoomTarget = Math.max(0.05, Math.min(zoomTarget, 20.0));
 }, { passive: false });
 
 // === Touch input ===
@@ -362,7 +362,7 @@ canvas.addEventListener("touchmove", (e) => {
     if (pinchStartDist > 0) {
       const ratio = dist / pinchStartDist;
       zoomTarget *= ratio > 1 ? 0.97 : 1.03;
-      zoomTarget = Math.max(0.2, Math.min(zoomTarget, 5.0));
+      zoomTarget = Math.max(0.05, Math.min(zoomTarget, 20.0));
     }
     pinchStartDist = dist;
   }
