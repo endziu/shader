@@ -86,23 +86,22 @@ void main() {
   float cDist = length(uv - cUV);
 
   // === LEFT CLICK: chaos explosion ===
-  float wave = click * sin(cDist * 40.0 - t * 12.0) *
-               exp(-cDist * 3.0) * smoothstep(0.0, 0.3, click);
+  float wave = click * sin(dist * 40.0 - t * 12.0) *
+               exp(-dist * 3.0) * smoothstep(0.0, 0.3, click);
   float shatter = click * fbm(uv * 12.0 + t * 2.0) *
-                  exp(-cDist * 2.0);
+               exp(-dist * 2.0);
 
-  float vortex = click * 0.6 * exp(-cDist * 4.0);
+  float vortex = click * 0.6 * exp(-dist * 4.0);
   float ca = cos(vortex), sa = sin(vortex);
-  vec2 rel = uv - cUV;
-  uv = cUV + vec2(rel.x * ca - rel.y * sa, rel.x * sa + rel.y * ca);
+  vec2 rel = uv - mUV;
+  uv = mUV + vec2(rel.x * ca - rel.y * sa, rel.x * sa + rel.y * ca);
 
-  vec2 radial = normalize(uv - cUV + 0.001) * wave * 0.08;
+  vec2 radial = normalize(uv - mUV + 0.001) * wave * 0.08;
   uv += radial + vec2(shatter, -shatter) * 0.1;
 
   // === RIGHT CLICK: black hole singularity ===
-  vec2 rUV = (m - 0.5) * vec2(r.x / r.y, 1.0);
-  float rDist = length(uv - rUV);
-
+  vec2 rUV = mUV;
+  float rDist = dist;
   // Massive gravitational pull — everything collapses inward
   float pull = rclick * 0.85 * exp(-rDist * 1.2);
   uv = mix(uv, rUV, pull);
