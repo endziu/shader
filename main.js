@@ -2,6 +2,10 @@ import "./style.css";
 
 const canvas = document.getElementById("c");
 const gl = canvas.getContext("webgl2");
+if (!gl) {
+  document.body.textContent = "WebGL2 is not supported in this browser.";
+  throw new Error("WebGL2 not supported");
+}
 
 const vs = `#version 300 es
 in vec2 a;
@@ -222,7 +226,9 @@ function compile(type, src) {
   gl.shaderSource(s, src);
   gl.compileShader(s);
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    console.error(gl.getShaderInfoLog(s));
+    const log = gl.getShaderInfoLog(s);
+    gl.deleteShader(s);
+    throw new Error(`Shader compilation failed:\n${log}`);
   }
   return s;
 }
