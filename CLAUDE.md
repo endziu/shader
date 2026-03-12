@@ -13,9 +13,9 @@ Single-file WebGL2 fractal shader visualization. Built with Vite, output to `dis
 
 ## Architecture
 
-Everything lives in `index.html` (~426 lines). The rendering technique is a full-screen quad (triangle strip, 4 vertices) where all visual output comes from the fragment shader.
+Three files: `index.html` (canvas mount point), `style.css` (full-screen canvas), `main.js` (~417 lines, all logic). The rendering technique is a full-screen quad (triangle strip, 4 vertices) where all visual output comes from the fragment shader.
 
-**Sections (top to bottom):**
+**`main.js` sections (top to bottom):**
 1. **Vertex shader** (GLSL ES 3.0) — pass-through for the full-screen quad
 2. **Fragment shader** — the bulk of the file. Includes:
    - `palette()` — cosine-based color function

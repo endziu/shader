@@ -17,6 +17,9 @@ uniform float click;
 uniform float rclick;
 uniform vec2 clickPos;
 uniform float quality;
+uniform float speed;
+uniform float colorShift;
+uniform float density;
 out vec4 o;
 
 vec3 palette(float t, float shift) {
@@ -60,7 +63,7 @@ float fbm(vec2 p) {
 void main() {
   vec2 uv = (gl_FragCoord.xy - r * 0.5) / min(r.x, r.y);
 
-  float spd = 0.3;
+  float spd = speed;
   float sc = 2.5 * zoom;
 
   vec2 mUV = (m - 0.5) * vec2(r.x / r.y, 1.0);
@@ -130,7 +133,7 @@ void main() {
   d.z += rBend * 0.5;
   d.xy = mix(d.xy, normalize(rUV - uv + 0.001) * 0.3, rBend * 0.4);
 
-  float baseIter = mix(50.0, 80.0, quality);
+  float baseIter = density;
   float maxIter = baseIter + click * 40.0;
   float spdMod = spd + click * 1.5 + rclick * 0.8;
 
@@ -155,7 +158,7 @@ void main() {
     float brightness = min(e * s, 1.0) / maxIter;
     float hue = 0.12 + i * 0.008 + t * 0.02 + influence * 0.15
               + click * (sin(t * 4.0) * 0.3 + i * 0.02);
-    col += palette(hue, m.x * 0.3 + click * 0.5) * brightness;
+    col += palette(hue, m.x * 0.3 + click * 0.5 + colorShift) * brightness;
   }
 
   // Left click: color explosion
@@ -250,8 +253,16 @@ const uClick = gl.getUniformLocation(pg, "click");
 const uRClick = gl.getUniformLocation(pg, "rclick");
 const uClickPos = gl.getUniformLocation(pg, "clickPos");
 const uQuality = gl.getUniformLocation(pg, "quality");
+const uSpeed = gl.getUniformLocation(pg, "speed");
+const uColorShift = gl.getUniformLocation(pg, "colorShift");
+const uDensity = gl.getUniformLocation(pg, "density");
 
 const isMobile = 'ontouchstart' in window;
+let speedVal = 0.3;
+let colorShiftVal = 0.0;
+let densityVal = isMobile ? 45.0 : 65.0;
+let colorCycle = false;
+let qualityVal = isMobile ? 0.0 : 1.0;
 
 let mouse = { x: 0.5, y: 0.5 };
 let smoothMouse = { x: 0.5, y: 0.5 };
@@ -391,6 +402,10 @@ function resize() {
 addEventListener("resize", resize);
 resize();
 
+// declared here so frame() can reference them during color cycle
+const hueSlider = document.getElementById("hue-slider");
+const hueValEl = document.getElementById("hue-val");
+
 function frame(ms) {
   smoothMouse.x += (mouse.x - smoothMouse.x) * 0.06;
   smoothMouse.y += (mouse.y - smoothMouse.y) * 0.06;
@@ -408,9 +423,65 @@ function frame(ms) {
   gl.uniform1f(uClick, clickIntensity);
   gl.uniform1f(uRClick, rclickIntensity);
   gl.uniform2f(uClickPos, clickPos.x, clickPos.y);
-  gl.uniform1f(uQuality, isMobile ? 0.0 : 1.0);
+  if (colorCycle) {
+    colorShiftVal = (colorShiftVal + 0.002) % 1.0;
+    hueSlider.value = colorShiftVal;
+    hueValEl.textContent = colorShiftVal.toFixed(2);
+  }
+  gl.uniform1f(uSpeed, speedVal);
+  gl.uniform1f(uColorShift, colorShiftVal);
+  gl.uniform1f(uDensity, densityVal);
+  gl.uniform1f(uQuality, qualityVal);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   requestAnimationFrame(frame);
 }
 
 requestAnimationFrame(frame);
+
+// === UI ===
+const panel = document.getElementById("controls-panel");
+
+document.getElementById("panel-toggle").addEventListener("click", () => {
+  panel.classList.toggle("hidden");
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "h") panel.classList.toggle("hidden");
+});
+
+document.getElementById("speed-slider").addEventListener("input", (e) => {
+  speedVal = parseFloat(e.target.value);
+  document.getElementById("speed-val").textContent = speedVal.toFixed(2);
+});
+
+hueSlider.addEventListener("input", (e) => {
+  colorShiftVal = parseFloat(e.target.value);
+  hueValEl.textContent = colorShiftVal.toFixed(2);
+});
+
+document.getElementById("density-slider").addEventListener("input", (e) => {
+  densityVal = parseFloat(e.target.value);
+  document.getElementById("density-val").textContent = Math.round(densityVal);
+});
+
+const cycleBtn = document.getElementById("cycle-btn");
+cycleBtn.addEventListener("click", () => {
+  colorCycle = !colorCycle;
+  cycleBtn.dataset.active = String(colorCycle);
+  cycleBtn.textContent = colorCycle ? "cycle on" : "cycle off";
+});
+
+const qualityBtn = document.getElementById("quality-btn");
+qualityBtn.addEventListener("click", () => {
+  qualityVal = qualityVal > 0.5 ? 0.0 : 1.0;
+  const hi = qualityVal > 0.5;
+  qualityBtn.dataset.active = String(hi);
+  qualityBtn.textContent = hi ? "quality hi" : "quality lo";
+});
+
+// sync initial slider values to mobile-aware defaults
+document.getElementById("density-slider").value = densityVal;
+document.getElementById("density-val").textContent = Math.round(densityVal);
+qualityBtn.dataset.active = String(qualityVal > 0.5);
+qualityBtn.textContent = qualityVal > 0.5 ? "quality hi" : "quality lo";
